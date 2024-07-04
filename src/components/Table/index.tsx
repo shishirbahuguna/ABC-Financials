@@ -1,5 +1,5 @@
 import { AgGridReact } from "ag-grid-react";
-import { CellValueChangedEvent, ColDef, ICellRendererParams, ValueSetterParams } from "ag-grid-community";
+import { CellValueChangedEvent, ColDef, ICellRendererParams } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useEffect, useState } from "react";
@@ -58,7 +58,7 @@ const Table = () => {
     }
 
     // Column Definitions: Defines the columns to be displayed.
-    const [colDefs, setColDefs] = useState<ColDef[]>([
+    const [colDefs, _] = useState<ColDef[]>([
         {
             headerName: "(Million)",
             field: "million",

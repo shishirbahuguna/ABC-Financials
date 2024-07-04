@@ -29,7 +29,7 @@ let actions = [
 
 const Wrapper = () => {
 
-    const [active, setActive] = useState("profit & loss");
+    const [active, _] = useState("profit & loss");
 
     return (
         <>
