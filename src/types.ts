@@ -10,4 +10,7 @@ export interface IRowData {
   edit?: boolean;
   isAddable?: boolean;
   isCustom?: boolean;
+  comments?: {
+    [key: string]: string;
+  };
 }

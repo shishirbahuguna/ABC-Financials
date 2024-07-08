@@ -1,16 +1,52 @@
 import { AgGridReact } from "ag-grid-react";
-import { CellValueChangedEvent, ColDef, ICellRendererParams } from "ag-grid-community";
+import { CellClickedEvent, CellValueChangedEvent, ColDef, ICellRendererParams } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useEffect, useState } from "react";
 import { initialRowData } from "./data";
 import { IRowData } from "../../types";
-import { IoMdAddCircle } from "react-icons/io";
-import { calculateTotal, calculateVariance, calculateVariancePercent } from "../../utils";
+import { IoMdAddCircle, IoMdSettings } from "react-icons/io";
+import { calculateTotal, calculateVariance, calculateVariancePercent, numberFormatter } from "../../utils";
+import { FaCommentDots } from "react-icons/fa";
+import { toast } from "react-toastify";
+import Modal from "../Modal";
+
+let iconSize = 18
+
+let tabs = [
+    "profit & loss",
+    "balance sheet",
+    "cash flow",
+    "ratios"
+]
+
+let actions = [
+    {
+        name: "add column",
+        icon: <IoMdAddCircle size={iconSize} />,
+    },
+    {
+        name: "insert comments",
+        icon: <FaCommentDots size={iconSize} />
+    },
+    {
+        name: "update column",
+        icon: <IoMdSettings size={iconSize} />
+    },
+]
+
 
 const Table = () => {
 
+    const [isOpen, setIsOpen] = useState(false);
+    const [active, setActive] = useState("profit & loss");
     const [rowData, setRowData] = useState<IRowData[]>(initialRowData);
+    const [selectedCell, setSelectedCell] = useState<{
+        data: IRowData;
+        colID: string;
+    } | null>(null);
+    const [comment, setComment] = useState<string>();
+    const [comments, setComments] = useState<{ [s: string]: string }>({});
 
     function addRowAfterIndex(index: number, newRow: IRowData, prev: IRowData[]) {
         const updatedRowData = [...prev];
@@ -19,6 +55,7 @@ const Table = () => {
     }
 
     const handleCellValueChange = (params: CellValueChangedEvent) => {
+        console.log(params)
         const updatedRowData = [...rowData];
         const index = updatedRowData.findIndex(row => row.id === params.data.id);
         if (index >= 0) {
@@ -31,6 +68,10 @@ const Table = () => {
     useEffect(() => {
         handleCalculations()
     }, [])
+
+    useEffect(() => {
+        if (isOpen == false) setComment("");
+    }, [isOpen])
 
     const handleCalculations = () => {
         setRowData(prev => calculateTotal(prev))
@@ -57,8 +98,9 @@ const Table = () => {
         handleCalculations()
     }
 
+
     // Column Definitions: Defines the columns to be displayed.
-    const [colDefs, _] = useState<ColDef[]>([
+    const [colDefs, setColDefs] = useState<ColDef[]>([
         {
             headerName: "(Million)",
             field: "million",
@@ -98,9 +140,9 @@ const Table = () => {
             },
             cellRenderer: (params: ICellRendererParams) => {
                 if (params.data.type == "total") {
-                    return (<div className="font-bold">{params.value}</div>);
+                    return (<div className="font-bold">{numberFormatter(params.value)}</div>);
                 }
-                return (<div>{params.value}</div>);
+                return (<div>{numberFormatter(params.value)} {params.data.comments && params.data.comments[2021] && `(${params.data.comments[2021]})`} </div>);
             },
         },
         {
@@ -123,9 +165,9 @@ const Table = () => {
             },
             cellRenderer: (params: ICellRendererParams) => {
                 if (params.data.type == "total") {
-                    return (<div className="font-bold">{params.value}</div>);
+                    return (<div className="font-bold">{numberFormatter(params.value)}</div>);
                 }
-                return (<div>{params.value}</div>);
+                return (<div>{numberFormatter(params.value)} {params.data.comments && params.data.comments[2022] && `(${params.data.comments[2022]})`}</div>);
             },
         },
         {
@@ -148,9 +190,9 @@ const Table = () => {
             },
             cellRenderer: (params: ICellRendererParams) => {
                 if (params.data.type == "total") {
-                    return (<div className="font-bold">{params.value}</div>);
+                    return (<div className="font-bold">{numberFormatter(params.value)}</div>);
                 }
-                return (<div>{params.value}</div>);
+                return (<div>{numberFormatter(params.value)} {params.data.comments && params.data.comments[2024] && `(${params.data.comments[2024]})`}</div>);
             },
         },
         {
@@ -158,7 +200,7 @@ const Table = () => {
             field: "variance",
             editable: false,
             cellRenderer: (params: ICellRendererParams) => {
-                return (<div className={`font-bold ${Number(params.value) < 0 ? "text-red-600" : "text-green-600"}`} >{params.value}</div>);
+                return (<div className={`font-bold ${Number(params.value) < 0 ? "text-red-600" : "text-green-600"}`} >{numberFormatter(params.value)}</div>);
             }
         },
         {
@@ -166,27 +208,124 @@ const Table = () => {
             field: "variance-percent",
             editable: false,
             cellRenderer: (params: ICellRendererParams) => {
-                return (<div className={`font-bold ${Number(params.value) < 0 ? "text-red-600" : "text-green-600"}`} >{params.value}</div>);
+                return (<div className={`font-bold ${Number(params.value) < 0 ? "text-red-600" : "text-green-600"}`} >{
+                    params.value ? numberFormatter(params.value) + "%" : "-"
+                }</div>);
             }
         },
     ]);
 
 
+    function handleCellClick(event: CellClickedEvent<any, any>): void {
+        setSelectedCell({
+            data: event.data,
+            colID: event.colDef.field as string
+        });
+        if (event.data.comments && event.data.comments[event.colDef.field as string]) {
+            setComment(event.data.comments[event.colDef.field as string]);
+        }
+    }
+
+    function handleAddComment() {
+        if (selectedCell == null) return toast.info("Select a cell first to add a comment");
+        if (comment == null || comment.trim() === "") return toast.info("Please enter a comment");
+        setRowData((prev) => {
+            const updatedRowData = [...prev];
+            const index = updatedRowData.findIndex(row => row.id === selectedCell.data.id);
+            if (index >= 0) {
+                let cmts = {
+                    ...updatedRowData[index].comments,
+                    [selectedCell.colID]: comment
+                }
+                updatedRowData[index].comments = cmts
+            }
+            return updatedRowData;
+        });
+        setComment("");
+        setIsOpen(false);
+    }
+
+    function handleAction(action: { name: string; icon: any; }) {
+        switch (action.name) {
+            case "add column":
+                break;
+            case "insert comments":
+                if (selectedCell == null) return toast.info("Select a cell first to add a comment");
+                setIsOpen(true);
+                break;
+            case "update column":
+                break;
+            default:
+                break;
+        }
+    }
+
     return (
         <>
-            <div className="p-4 h-[90vh] ag-theme-alpine" >
-                <AgGridReact
-                    rowData={rowData}
-                    columnDefs={colDefs}
-                    defaultColDef={{
-                        editable: false,
-                        sortable: true,
-                        resizable: true,
-                    }}
-                    onGridReady={params => params.api.sizeColumnsToFit()}
-                    onCellValueChanged={handleCellValueChange}
-                />
+            <div className="header">
+                <h1 className="text-lg font-bold" >Financial statements</h1>
+                <div className="flex justify-between items-center my-4" >
+                    <div className="flex gap-3 items-center" >
+                        {tabs.map((tab, index) => (
+                            <button key={index} disabled={tab !== active} className={`bg-white capitalize border  px-4 py-1 text-sm rounded cursor-pointer ${tab == active ? "border-red-400 text-red-600 " : "border-gray-400 text-gray-600 "}`}  >
+                                {tab}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex gap-3 items-center" >
+                        {
+                            actions.map((action, index) => (
+                                <button
+                                    key={index}
+                                    className="bg-white capitalize border px-4 py-1 text-sm rounded cursor-pointer flex gap-2 items-center border-gray-400 text-gray-600 "
+                                    onClick={() => handleAction(action)}
+                                >
+                                    {action.icon}
+                                    <span>
+                                        {action.name}
+                                    </span>
+                                </button>
+                            ))
+                        }
+                    </div>
+                </div>
             </div>
+            <div className="body my-4" >
+                <div className="p-4 h-[90vh] ag-theme-alpine" >
+                    <AgGridReact
+                        rowData={rowData}
+                        columnDefs={colDefs}
+                        defaultColDef={{
+                            editable: false,
+                            sortable: true,
+                            resizable: true,
+                        }}
+                        suppressScrollOnNewData={true}
+                        onGridReady={params => params.api.sizeColumnsToFit()}
+                        onCellValueChanged={handleCellValueChange}
+                        onCellClicked={handleCellClick}
+                    />
+                </div>
+            </div>
+            <Modal isOpen={isOpen} onClose={() => setIsOpen(false)}>
+                <div className="p-4" >
+                    <h4 className="text-lg font-bold">Add comment</h4>
+                    <textarea
+                        className="w-full h-32 p-2 border rounded my-6"
+                        placeholder="Add a comment"
+                        value={comment}
+                        onChange={e => setComment(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2 mt-4" >
+                        <button className="bg-red-600 text-white px-4 py-2 rounded" onClick={() => setIsOpen(false)} >
+                            Cancel
+                        </button>
+                        <button className="bg-green-600 text-white px-4 py-2 rounded" onClick={handleAddComment} >
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </>
     )
 }

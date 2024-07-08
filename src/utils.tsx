@@ -45,8 +45,15 @@ export const calculateVariancePercent = (rows: IRowData[]): IRowData[] => {
             let variance = Number(row[2024]) - Number(row[2022])
             let variancePercent = variance / Number(row[2022]);
 
-            row["variance-percent"] = variancePercent ? String((variancePercent).toFixed(2)) + "%" : "0%";
+            row["variance-percent"] = variancePercent ? String((variancePercent).toFixed(2)) : "0";
         }
     })
     return temp
-}   
+}
+
+export const numberFormatter = (val: string) => {
+    if (val) {
+        return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+    return val;
+};
